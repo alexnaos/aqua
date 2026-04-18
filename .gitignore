@@ -1,25 +1,48 @@
 ```
-# Compiled and build artifacts
-*.pyc
-__pycache__/
-*.o
-*.obj
+# PlatformIO build artifacts
+.platformio/
+pioenvs/
+piolibdeps/
 
-# Dependencies
-.venv/
-venv/
+# Build directories
+build/
+.dist/
+.libs/
+.deps/
 
-# Logs and temp files
-*.log
-*.tmp
+# IDE
+.vscode/
+.idea/
 *.swp
+*.swo
+
+# Logs
+*.log
 
 # Environment
 .env
 .env.local
 *.env.*
 
-# Editors
-.vscode/
-.idea/
+# OS
+.DS_Store
+Thumbs.db
+
+# Temp files
+*.tmp
+*.bak
+*.backup
+
+# Coverage
+.coverage
+coverage/
+htmlcov/
+
+# Python (if applicable)
+__pycache__/
+*.pyc
+*.pyo
+.Python
+*.so
+*.egg-info/
 ```
