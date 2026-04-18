@@ -1,159 +1,220 @@
 #include <Arduino.h>
 #include <WiFi.h>
-#include <Wire.h>
-#include <Adafruit_GFX.h>
-#include <Adafruit_SSD1306.h>
-#include <Settings.h>
+#include <LittleFS.h>
+#include <GyverDBFile.h>
+#include <SettingsGyver.h>
 
-// === НАСТРОЙКИ ДИСПЛЕЯ ===
-#define OLED_RESET -1
-#define SCREEN_WIDTH 128
-#define SCREEN_HEIGHT 64
-Adafruit_SSD1306 display(SCREEN_WIDTH, SCREEN_HEIGHT, &Wire, OLED_RESET);
+// ========== WiFi Credentials (хранятся в БД) ==========
+#define WIFI_SSID_DEFAULT "YourSSID"
+#define WIFI_PASS_DEFAULT "YourPassword"
 
-// === ПИНЫ НАГРУЗОК ===
-const uint8_t PIN_PUMP    = 26;
-const uint8_t PIN_LIGHT   = 27;
-const uint8_t PIN_HEATER  = 14;
-const uint8_t PIN_CO2     = 12;
-const uint8_t PIN_AERATOR = 13;
+// ========== Pin Definitions ==========
+#define PIN_PUMP 26
+#define PIN_CO2 27
+#define PIN_TEMP_SENSOR 34
 
-// === ОБЪЕКТ НАСТРОЕК ===
-Settings sett;
-
-// === КЛЮЧИ БАЗЫ ДАННЫХ (DB_KEYS) ===
+// ========== Database Keys ==========
 DB_KEYS(
-    wifi_ssid,      // WiFi SSID
-    wifi_pass,      // WiFi Password
-    temp_target,    // Целевая температура
-    temp_hyst,      // Гистерезис температуры
-    light_start,    // Время включения света
-    light_end,      // Время выключения света
-    co2_enabled,    // Включена ли система CO2
-    pump_enabled,   // Включен ли насос
-    reboot_btn      // Кнопка перезагрузки (техническая)
+    wifi_ssid,
+    wifi_pass,
+    temp_target,      // x10 для точности (25.0 = 250)
+    temp_hyst,        // x10
+    light_start,
+    light_end,
+    co2_enabled,
+    pump_enabled
 );
 
-void connectWiFi() {
-    Serial.print("Connecting to ");
-    Serial.println((const char*)wifi_ssid);
-    WiFi.begin((const char*)wifi_ssid, (const char*)wifi_pass);
+// ========== Global Objects ==========
+GyverDBFile db(&LittleFS, "/aqua.db");
+SettingsGyver sett("Aqua Control", &db);
 
-    int attempts = 0;
-    while (WiFi.status() != WL_CONNECTED && attempts < 20) {
+// ========== Runtime Variables ==========
+float currentTemp = 24.5;  // Заглушка, в реальности чтение с датчика
+bool heaterOn = false;
+
+// ========== Function Declarations ==========
+void connectWiFi();
+void controlLogic();
+void build(sets::Builder& b);
+void update(sets::Updater& u);
+
+// ========== WiFi Connection ==========
+void connectWiFi() {
+    String ssid = db.get<String>(wifi_ssid);
+    String pass = db.get<String>(wifi_pass);
+    
+    if (ssid.length() == 0) {
+        ssid = WIFI_SSID_DEFAULT;
+        pass = WIFI_PASS_DEFAULT;
+    }
+    
+    Serial.print("Connecting to ");
+    Serial.println(ssid);
+    
+    WiFi.mode(WIFI_STA);
+    WiFi.begin(ssid.c_str(), pass.c_str());
+    
+    int tries = 30;
+    while (WiFi.status() != WL_CONNECTED && tries > 0) {
         delay(500);
         Serial.print(".");
-        attempts++;
+        tries--;
     }
-
+    
     if (WiFi.status() == WL_CONNECTED) {
-        Serial.println("\nIP: " + WiFi.localIP().toString());
+        Serial.println("\nConnected!");
+        Serial.print("IP: ");
+        Serial.println(WiFi.localIP());
     } else {
-        Serial.println("\nWiFi Failed!");
+        Serial.println("\nFailed to connect. Starting AP mode...");
+        WiFi.mode(WIFI_AP);
+        WiFi.softAP("Aqua-Settings", "12345678");
+        Serial.print("AP IP: ");
+        Serial.println(WiFi.softAPIP());
     }
 }
 
+// ========== Main Control Logic ==========
 void controlLogic() {
-    float currentTemp = 24.5f;
-
-    if (currentTemp < (temp_target - temp_hyst)) {
-        digitalWrite(PIN_HEATER, HIGH);
-    } else if (currentTemp > temp_target) {
-        digitalWrite(PIN_HEATER, LOW);
+    // Чтение температуры (заглушка)
+    // currentTemp = analogRead(PIN_TEMP_SENSOR) * ...;
+    
+    int target = db.get<int>(temp_target);
+    int hyst = db.get<int>(temp_hyst);
+    
+    float targetTemp = target / 10.0;
+    float hystTemp = hyst / 10.0;
+    
+    // Простая логика гистерезиса
+    if (currentTemp < (targetTemp - hystTemp)) {
+        heaterOn = true;
+    } else if (currentTemp > (targetTemp + hystTemp)) {
+        heaterOn = false;
     }
-
-    digitalWrite(PIN_LIGHT, HIGH);
-    digitalWrite(PIN_PUMP, pump_enabled ? HIGH : LOW);
-    digitalWrite(PIN_CO2, co2_enabled ? HIGH : LOW);
-
-    display.clearDisplay();
-    display.setTextSize(1);
-    display.setTextColor(SSD1306_WHITE);
-    display.setCursor(0, 0);
     
-    display.println("AQUA CONTROL");
-    display.print("T: "); display.print(currentTemp); display.println(" C");
-    display.print("Set: "); display.print(temp_target); display.println(" C");
-    display.print("WiFi: "); display.println(WiFi.status() == WL_CONNECTED ? "OK" : "NO");
+    bool pumpEn = db.get<bool>(pump_enabled);
+    bool co2En = db.get<bool>(co2_enabled);
     
-    display.display();
+    digitalWrite(PIN_PUMP, pumpEn ? HIGH : LOW);
+    digitalWrite(PIN_CO2, co2En ? HIGH : LOW);
+    
+    // Вывод на дисплей (заглушка)
+    Serial.printf("Temp: %.1f C, Target: %.1f C, Heater: %s\n", 
+                  currentTemp, targetTemp, heaterOn ? "ON" : "OFF");
 }
 
+// ========== Settings UI Builder ==========
+void build(sets::Builder& b) {
+    b.Label("Aqua Control System");
+    b.Paragraph("WiFi and Device Settings");
+    
+    // WiFi Settings
+    b.Input("WiFi SSID", &db.ref<String>(wifi_ssid));
+    b.Pass("WiFi Password", &db.ref<String>(wifi_pass));
+    
+    b.hr();
+    
+    // Temperature Settings
+    b.Number("Target Temp (x10)", &db.ref<int>(temp_target), 100, 350);
+    b.Paragraph("Enter temperature * 10 (e.g., 250 = 25.0C)");
+    
+    b.Number("Hysteresis (x10)", &db.ref<int>(temp_hyst), 1, 50);
+    b.Paragraph("Enter hysteresis * 10 (e.g., 5 = 0.5C)");
+    
+    b.hr();
+    
+    // Light Schedule
+    b.Number("Light Start Hour", &db.ref<int>(light_start), 0, 23);
+    b.Number("Light End Hour", &db.ref<int>(light_end), 0, 23);
+    
+    b.hr();
+    
+    // Device Toggles
+    b.Switch("CO2 System Enabled", &db.ref<bool>(co2_enabled));
+    b.Switch("Main Pump Enabled", &db.ref<bool>(pump_enabled));
+    
+    b.hr();
+    
+    // Actions
+    if (b.Button("Reboot ESP")) {
+        Serial.println("Rebooting...");
+        ESP.restart();
+    }
+    
+    if (b.Button("Reset Settings")) {
+        Serial.println("Resetting settings...");
+        db.reset();
+        // Инициализация дефолтных значений
+        db.init(wifi_ssid, String(WIFI_SSID_DEFAULT));
+        db.init(wifi_pass, String(WIFI_PASS_DEFAULT));
+        db.init(temp_target, 250);  // 25.0C
+        db.init(temp_hyst, 5);      // 0.5C
+        db.init(light_start, 8);
+        db.init(light_end, 20);
+        db.init(co2_enabled, false);
+        db.init(pump_enabled, true);
+        ESP.restart();
+    }
+}
+
+// ========== Settings Updater (для динамических обновлений) ==========
+void update(sets::Updater& u) {
+    // Здесь можно обрабатывать изменения в реальном времени
+    // Например, если нужно что-то сделать при изменении настроек
+}
+
+// ========== Setup ==========
 void setup() {
     Serial.begin(115200);
-    while (!Serial);
-
-    pinMode(PIN_PUMP, OUTPUT);
-    pinMode(PIN_LIGHT, OUTPUT);
-    pinMode(PIN_HEATER, OUTPUT);
-    pinMode(PIN_CO2, OUTPUT);
-    pinMode(PIN_AERATOR, OUTPUT);
-
-    if (!display.begin(SSD1306_SWITCHCAPVCC, 0x3C)) {
-        Serial.println(F("SSD1306 failed"));
-        for(;;);
-    }
-    display.clearDisplay();
-    display.display();
     delay(1000);
-
-    // Инициализация настроек
-    sett.begin();
-
-    // Построение интерфейса через build с лямбда-функцией
-    sett.build([]() {
-        sett.label("Aqua Control Settings");
-        sett.hr();
-
-        // WiFi настройки
-        sett.input(&wifi_ssid, "WiFi SSID");
-        sett.input(&wifi_pass, "WiFi Pass");
-
-        // Температура (intInput для целых чисел, но у нас float - используем input или конвертируем)
-        // Для float в Settings нет прямого виджета, используем input как строку или int с масштабированием
-        // В документации только intInput, checkbox, select, action, label, hr, input
-        sett.intInput(&temp_target, "Target Temp x10", 100, 350); // храним как int * 10
-        sett.intInput(&temp_hyst, "Hysteresis x10", 1, 50);
-
-        // Время света
-        sett.intInput(&light_start, "Light Start Hour", 0, 23);
-        sett.intInput(&light_end, "Light End Hour", 0, 23);
-
-        // Переключатели
-        sett.checkbox(&co2_enabled, "CO2 System Enabled");
-        sett.checkbox(&pump_enabled, "Main Pump Enabled");
-
-        sett.hr();
-
-        // Кнопка перезагрузки - действие выполняется сразу при нажатии внутри build
-        sett.action("Reboot ESP", []() {
-            Serial.println("Rebooting...");
-            ESP.restart();
-        });
-        
-        sett.action("Reset Settings", []() {
-            sett.reset();
-            Serial.println("Settings reset!");
-        });
-    });
-
-    connectWiFi();
-
-    display.setCursor(0, 0);
-    display.println("System Ready");
-    display.println("Open Web UI");
-    display.display();
+    Serial.println("\n=== Aqua Control System ===");
     
-    Serial.println("System started");
+    // Init Pins
+    pinMode(PIN_PUMP, OUTPUT);
+    pinMode(PIN_CO2, OUTPUT);
+    pinMode(PIN_TEMP_SENSOR, INPUT);
+    
+    // Init File System
+    if (!LittleFS.begin(true)) {
+        Serial.println("LittleFS mount failed!");
+        return;
+    }
+    Serial.println("LittleFS mounted");
+    
+    // Init Database
+    db.begin();
+    
+    // Initialize default values if not exist
+    db.init(wifi_ssid, String(WIFI_SSID_DEFAULT));
+    db.init(wifi_pass, String(WIFI_PASS_DEFAULT));
+    db.init(temp_target, 250);  // 25.0C
+    db.init(temp_hyst, 5);      // 0.5C
+    db.init(light_start, 8);
+    db.init(light_end, 20);
+    db.init(co2_enabled, false);
+    db.init(pump_enabled, true);
+    
+    // Connect WiFi
+    connectWiFi();
+    
+    // Init Settings UI
+    sett.begin();
+    sett.onBuild(build);
+    sett.onUpdate(update);
+    
+    Serial.println("System ready. Open http://" + WiFi.localIP().toString());
 }
 
+// ========== Loop ==========
 void loop() {
-    // Основной цикл обработки настроек
-    sett.tick();
-
-    static unsigned long timer = 0;
-    if (millis() - timer > 1000) {
-        timer = millis();
+    sett.tick();  // Обработка веб-интерфейса
+    
+    static unsigned long lastControl = 0;
+    if (millis() - lastControl > 1000) {
+        lastControl = millis();
         controlLogic();
     }
+    
+    delay(10);
 }
