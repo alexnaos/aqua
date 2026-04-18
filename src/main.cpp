@@ -35,31 +35,28 @@ bool pump_enabled = true;
 SettingsGyver sett("AquaControlDB");
 
 // === ФУНКЦИЯ ПОСТРОЕНИЯ ИНТЕРФЕЙСА ===
-// Используем PTR() для передачи указателей на переменные
 void build(sets::Builder& b) {
     // WiFi
-    b.Input("WiFi SSID", PTR(wifi_ssid));
-    b.Input("WiFi Pass", PTR(wifi_pass));
+    b.Input("WiFi SSID", wifi_ssid);
+    b.Input("WiFi Pass", wifi_pass);
 
-    // Температура
-    // Сигнатура: Slider(ID, Label, Min, Max, Step, Unit, Ptr, Color)
-    // ID можно опустить (автогенерация), если не нужно специфическое управление
-    b.Slider("Target Temp", 10.0f, 35.0f, 0.1f, "", PTR(temp_target));
-    b.Slider("Hysteresis", 0.1f, 5.0f, 0.1f, "", PTR(temp_hyst));
+    // Температура - Slider(label, min, max, step, unit, ptr, color)
+    b.Slider("Target Temp", 10.0f, 35.0f, 0.1f, "", &temp_target);
+    b.Slider("Hysteresis", 0.1f, 5.0f, 0.1f, "", &temp_hyst);
 
-    // Время света (Number для int)
-    // Сигнатура: Number(ID, Label, Min, Max, Ptr, Color)
-    b.Number("Light Start", 0, 23, PTR(light_start));
-    b.Number("Light End", 0, 23, PTR(light_end));
+    // Время света - Number(label, min, max, ptr)
+    b.Number("Light Start", 0, 23, &light_start);
+    b.Number("Light End", 0, 23, &light_end);
 
-    // Переключатели
-    // Сигнатура: Switch(ID, Label, Ptr, Color)
-    b.Switch("CO2 System", PTR(co2_enabled));
-    b.Switch("Main Pump", PTR(pump_enabled));
+    // Переключатели - Switch(label, ptr, color)
+    b.Switch("CO2 System", &co2_enabled);
+    b.Switch("Main Pump", &pump_enabled);
 
     // Кнопка перезагрузки
-    // Кнопка не имеет привязки к переменной, но требует ID для обработки события
-    b.Button("Reboot ESP"); 
+    if (b.Button("Reboot ESP")) {
+        Serial.println("Rebooting...");
+        ESP.restart();
+    }
 }
 
 void connectWiFi() {
@@ -107,14 +104,6 @@ void controlLogic() {
     display.display();
 }
 
-// Обработчик событий (для кнопки Reboot)
-void eventHandler(sets::Event& ev) {
-    if (ev.isButton("Reboot ESP")) {
-        Serial.println("Rebooting...");
-        ESP.restart();
-    }
-}
-
 void setup() {
     Serial.begin(115200);
     while (!Serial);
@@ -135,7 +124,6 @@ void setup() {
 
     sett.begin();
     sett.onBuild(build);
-    sett.onEvent(eventHandler); // Подключаем обработчик событий
 
     connectWiFi();
 
