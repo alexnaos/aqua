@@ -15,6 +15,7 @@
 
 // ========== Database Keys ==========
 DB_KEYS(
+    kk,
     wifi_ssid,
     wifi_pass,
     temp_target,      // x10 для точности (25.0 = 250)
@@ -41,8 +42,8 @@ void update(sets::Updater& u);
 
 // ========== WiFi Connection ==========
 void connectWiFi() {
-    String ssid = db.get<String>(wifi_ssid);
-    String pass = db.get<String>(wifi_pass);
+    String ssid = db.get<String>(kk::wifi_ssid);
+    String pass = db.get<String>(kk::wifi_pass);
     
     if (ssid.length() == 0) {
         ssid = WIFI_SSID_DEFAULT;
@@ -80,8 +81,8 @@ void controlLogic() {
     // Чтение температуры (заглушка)
     // currentTemp = analogRead(PIN_TEMP_SENSOR) * ...;
     
-    int target = db.get<int>(temp_target);
-    int hyst = db.get<int>(temp_hyst);
+    int target = db.get<int>(kk::temp_target);
+    int hyst = db.get<int>(kk::temp_hyst);
     
     float targetTemp = target / 10.0;
     float hystTemp = hyst / 10.0;
@@ -93,8 +94,8 @@ void controlLogic() {
         heaterOn = false;
     }
     
-    bool pumpEn = db.get<bool>(pump_enabled);
-    bool co2En = db.get<bool>(co2_enabled);
+    bool pumpEn = db.get<bool>(kk::pump_enabled);
+    bool co2En = db.get<bool>(kk::co2_enabled);
     
     digitalWrite(PIN_PUMP, pumpEn ? HIGH : LOW);
     digitalWrite(PIN_CO2, co2En ? HIGH : LOW);
@@ -110,31 +111,23 @@ void build(sets::Builder& b) {
     b.Paragraph("WiFi and Device Settings");
     
     // WiFi Settings
-    b.Input("WiFi SSID", &db.ref<String>(wifi_ssid));
-    b.Pass("WiFi Password", &db.ref<String>(wifi_pass));
-    
-    b.hr();
+    b.Input(kk::wifi_ssid, "WiFi SSID");
+    b.Pass(kk::wifi_pass, "WiFi Password");
     
     // Temperature Settings
-    b.Number("Target Temp (x10)", &db.ref<int>(temp_target), 100, 350);
+    b.Number(kk::temp_target, "Target Temp (x10)", 100, 350);
     b.Paragraph("Enter temperature * 10 (e.g., 250 = 25.0C)");
     
-    b.Number("Hysteresis (x10)", &db.ref<int>(temp_hyst), 1, 50);
+    b.Number(kk::temp_hyst, "Hysteresis (x10)", 1, 50);
     b.Paragraph("Enter hysteresis * 10 (e.g., 5 = 0.5C)");
     
-    b.hr();
-    
     // Light Schedule
-    b.Number("Light Start Hour", &db.ref<int>(light_start), 0, 23);
-    b.Number("Light End Hour", &db.ref<int>(light_end), 0, 23);
-    
-    b.hr();
+    b.Number(kk::light_start, "Light Start Hour", 0, 23);
+    b.Number(kk::light_end, "Light End Hour", 0, 23);
     
     // Device Toggles
-    b.Switch("CO2 System Enabled", &db.ref<bool>(co2_enabled));
-    b.Switch("Main Pump Enabled", &db.ref<bool>(pump_enabled));
-    
-    b.hr();
+    b.Switch(kk::co2_enabled, "CO2 System Enabled");
+    b.Switch(kk::pump_enabled, "Main Pump Enabled");
     
     // Actions
     if (b.Button("Reboot ESP")) {
@@ -146,14 +139,14 @@ void build(sets::Builder& b) {
         Serial.println("Resetting settings...");
         db.reset();
         // Инициализация дефолтных значений
-        db.init(wifi_ssid, String(WIFI_SSID_DEFAULT));
-        db.init(wifi_pass, String(WIFI_PASS_DEFAULT));
-        db.init(temp_target, 250);  // 25.0C
-        db.init(temp_hyst, 5);      // 0.5C
-        db.init(light_start, 8);
-        db.init(light_end, 20);
-        db.init(co2_enabled, false);
-        db.init(pump_enabled, true);
+        db.init(kk::wifi_ssid, String(WIFI_SSID_DEFAULT));
+        db.init(kk::wifi_pass, String(WIFI_PASS_DEFAULT));
+        db.init(kk::temp_target, 250);  // 25.0C
+        db.init(kk::temp_hyst, 5);      // 0.5C
+        db.init(kk::light_start, 8);
+        db.init(kk::light_end, 20);
+        db.init(kk::co2_enabled, false);
+        db.init(kk::pump_enabled, true);
         ESP.restart();
     }
 }
@@ -186,14 +179,14 @@ void setup() {
     db.begin();
     
     // Initialize default values if not exist
-    db.init(wifi_ssid, String(WIFI_SSID_DEFAULT));
-    db.init(wifi_pass, String(WIFI_PASS_DEFAULT));
-    db.init(temp_target, 250);  // 25.0C
-    db.init(temp_hyst, 5);      // 0.5C
-    db.init(light_start, 8);
-    db.init(light_end, 20);
-    db.init(co2_enabled, false);
-    db.init(pump_enabled, true);
+    db.init(kk::wifi_ssid, String(WIFI_SSID_DEFAULT));
+    db.init(kk::wifi_pass, String(WIFI_PASS_DEFAULT));
+    db.init(kk::temp_target, 250);  // 25.0C
+    db.init(kk::temp_hyst, 5);      // 0.5C
+    db.init(kk::light_start, 8);
+    db.init(kk::light_end, 20);
+    db.init(kk::co2_enabled, false);
+    db.init(kk::pump_enabled, true);
     
     // Connect WiFi
     connectWiFi();
