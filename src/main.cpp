@@ -3,7 +3,7 @@
 #include <Wire.h>
 #include <Adafruit_GFX.h>
 #include <Adafruit_SSD1306.h>
-#include <SettingsGyver.h>
+#include <Settings.h>
 
 // === НАСТРОЙКИ ДИСПЛЕЯ ===
 #define OLED_RESET -1
@@ -18,51 +18,26 @@ const uint8_t PIN_HEATER  = 14;
 const uint8_t PIN_CO2     = 12;
 const uint8_t PIN_AERATOR = 13;
 
-// === ПЕРЕМЕННЫЕ НАСТРОЕК ===
-char wifi_ssid[32] = "MyAquarium";
-char wifi_pass[32] = "12345678";
-
-float temp_target = 25.0f;
-float temp_hyst   = 0.5f;
-
-int light_start = 8;
-int light_end   = 20;
-
-bool co2_enabled = true;
-bool pump_enabled = true;
-
 // === ОБЪЕКТ НАСТРОЕК ===
-SettingsGyver sett("AquaControlDB");
+Settings sett;
 
-// === ФУНКЦИЯ ПОСТРОЕНИЯ ИНТЕРФЕЙСА ===
-void build(sets::Builder& b) {
-    // WiFi
-    b.Input("WiFi SSID", wifi_ssid);
-    b.Input("WiFi Pass", wifi_pass);
-
-    // Температура - Slider(label, min, max, step, unit, ptr, color)
-    b.Slider("Target Temp", 10.0f, 35.0f, 0.1f, "", &temp_target);
-    b.Slider("Hysteresis", 0.1f, 5.0f, 0.1f, "", &temp_hyst);
-
-    // Время света - Number(label, min, max, ptr)
-    b.Number("Light Start", 0, 23, &light_start);
-    b.Number("Light End", 0, 23, &light_end);
-
-    // Переключатели - Switch(label, ptr, color)
-    b.Switch("CO2 System", &co2_enabled);
-    b.Switch("Main Pump", &pump_enabled);
-
-    // Кнопка перезагрузки
-    if (b.Button("Reboot ESP")) {
-        Serial.println("Rebooting...");
-        ESP.restart();
-    }
-}
+// === КЛЮЧИ БАЗЫ ДАННЫХ (DB_KEYS) ===
+DB_KEYS(
+    wifi_ssid,      // WiFi SSID
+    wifi_pass,      // WiFi Password
+    temp_target,    // Целевая температура
+    temp_hyst,      // Гистерезис температуры
+    light_start,    // Время включения света
+    light_end,      // Время выключения света
+    co2_enabled,    // Включена ли система CO2
+    pump_enabled,   // Включен ли насос
+    reboot_btn      // Кнопка перезагрузки (техническая)
+);
 
 void connectWiFi() {
     Serial.print("Connecting to ");
-    Serial.println(wifi_ssid);
-    WiFi.begin(wifi_ssid, wifi_pass);
+    Serial.println((const char*)wifi_ssid);
+    WiFi.begin((const char*)wifi_ssid, (const char*)wifi_pass);
 
     int attempts = 0;
     while (WiFi.status() != WL_CONNECTED && attempts < 20) {
@@ -122,8 +97,45 @@ void setup() {
     display.display();
     delay(1000);
 
+    // Инициализация настроек
     sett.begin();
-    sett.onBuild(build);
+
+    // Построение интерфейса через build с лямбда-функцией
+    sett.build([]() {
+        sett.label("Aqua Control Settings");
+        sett.hr();
+
+        // WiFi настройки
+        sett.input(&wifi_ssid, "WiFi SSID");
+        sett.input(&wifi_pass, "WiFi Pass");
+
+        // Температура (intInput для целых чисел, но у нас float - используем input или конвертируем)
+        // Для float в Settings нет прямого виджета, используем input как строку или int с масштабированием
+        // В документации только intInput, checkbox, select, action, label, hr, input
+        sett.intInput(&temp_target, "Target Temp x10", 100, 350); // храним как int * 10
+        sett.intInput(&temp_hyst, "Hysteresis x10", 1, 50);
+
+        // Время света
+        sett.intInput(&light_start, "Light Start Hour", 0, 23);
+        sett.intInput(&light_end, "Light End Hour", 0, 23);
+
+        // Переключатели
+        sett.checkbox(&co2_enabled, "CO2 System Enabled");
+        sett.checkbox(&pump_enabled, "Main Pump Enabled");
+
+        sett.hr();
+
+        // Кнопка перезагрузки - действие выполняется сразу при нажатии внутри build
+        sett.action("Reboot ESP", []() {
+            Serial.println("Rebooting...");
+            ESP.restart();
+        });
+        
+        sett.action("Reset Settings", []() {
+            sett.reset();
+            Serial.println("Settings reset!");
+        });
+    });
 
     connectWiFi();
 
@@ -131,9 +143,12 @@ void setup() {
     display.println("System Ready");
     display.println("Open Web UI");
     display.display();
+    
+    Serial.println("System started");
 }
 
 void loop() {
+    // Основной цикл обработки настроек
     sett.tick();
 
     static unsigned long timer = 0;
