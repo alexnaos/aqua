@@ -2,12 +2,12 @@
 #include "config.h"
 #include "ui_portal.h"
 #include "mqtt_handler.h"
+#include "lcd_menu.h"
 #include <ESPmDNS.h>
 
 // --- Глобальные объекты (определение) ---
 GyverDBFile db(&LittleFS, "/data.db");
 SettingsGyver sett("Aqua Control", &db);
-Adafruit_SSD1306 display(SCREEN_WIDTH, SCREEN_HEIGHT, &Wire, OLED_RESET);
 MqttHandler mqtt;
 
 // Переменные состояния
@@ -57,15 +57,8 @@ void controlLogic()
     bool lightState = (hour >= lightStart && hour < lightEnd);
     digitalWrite(PIN_LIGHT, lightState ? HIGH : LOW);
 
-    // Обновление дисплея
-    display.clearDisplay();
-    display.setTextSize(1);
-    display.setTextColor(SSD1306_WHITE);
-    display.setCursor(0, 0);
-    display.print("Temp: "); display.print(currentTemp / 10.0); display.println(" C");
-    display.print("Set: ");  display.print(target / 10.0); display.println(" C");
-    display.print("Pump: "); display.println(pumpState ? "ON" : "OFF");
-    display.display();
+    // Обновление LCD дисплея
+    lcdMenu.updateSensors(currentTemp / 10.0, pumpState, co2Enabled, lightState);
 }
 
 void setup()
@@ -77,15 +70,6 @@ void setup()
     pinMode(PIN_PUMP, OUTPUT);
     pinMode(PIN_CO2, OUTPUT);
     pinMode(PIN_LIGHT, OUTPUT);
-
-    // Инициализация дисплея
-    Wire.begin();
-    if(!display.begin(SSD1306_SWITCHCAPVCC, 0x3C)) {
-        Serial.println(F("SSD1306 allocation failed"));
-    }
-    display.display();
-    delay(100);
-    display.clearDisplay();
 
     // Инициализация файловой системы
     if (!LittleFS.begin(true)) {
@@ -144,6 +128,9 @@ void setup()
     sett.onBuild(build);
     sett.onUpdate(update);
 
+    // Инициализация LCD меню
+    lcdMenu.begin(&db);
+
     // Инициализация MQTT
     mqtt.begin();
 
@@ -156,6 +143,7 @@ void loop()
     sett.tick();     // Обслуживание веб-интерфейса
     db.tick();       // Сохранение настроек в базу
     mqtt.tick();     // Обработка MQTT сообщений
+    lcdMenu.tick();  // Обработка энкодера и LCD меню
 
     // Логика устройства (каждую секунду)
     if (millis() - lastMillis >= 1000) {
