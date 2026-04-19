@@ -20,8 +20,8 @@
 #define PIN_LIGHT 5
 
 // --- Сеть ---
-#define WIFI_SSID_DEFAULT "MyWiFi"
-#define WIFI_PASS_DEFAULT "password"
+#define WIFI_SSID_DEFAULT "Sloboda100"
+#define WIFI_PASS_DEFAULT "2716192023"
 
 // --- Ключи базы данных ---
 enum kk : size_t

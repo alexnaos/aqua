@@ -23,18 +23,20 @@ void build(sets::Builder &b)
     }
 
     // Группа Температуры
-      if (b.beginGroup("Temperature Control"))
+    if (b.beginGroup("Temperature Control"))
     {
-        b.Number(kk::temp_target, "Target Temp (x10)", 100, 350);
-        b.Number(kk::temp_hyst, "Hysteresis (x10)", 1, 50);
+        // Исправлено: передаем только ID, как в примере demo_data
+        b.Number(kk::temp_target, "Target Temp (x10)");
+        b.Number(kk::temp_hyst, "Hysteresis (x10)");
         b.endGroup();
     }
 
     // Группа Освещение
     if (b.beginGroup("Light Timer"))
     {
-        b.Number(kk::light_start, "Start Hour", 0, 23);
-        b.Number(kk::light_end, "End Hour", 0, 23);
+        // Исправлено: передаем только ID
+        b.Number(kk::light_start, "Start Hour");
+        b.Number(kk::light_end, "End Hour");
         b.endGroup();
     }
 
