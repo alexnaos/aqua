@@ -1,4 +1,0 @@
-# Test file for verification
-This file confirms that changes are being pushed to the repository successfully.
-Date: 2024-01-XX
-Author: Assistant
