@@ -1,12 +1,14 @@
 #include <Arduino.h>
 #include "config.h"
 #include "ui_portal.h"
+#include "mqtt_handler.h"
 #include <ESPmDNS.h>
 
 // --- Глобальные объекты (определение) ---
 GyverDBFile db(&LittleFS, "/data.db");
 SettingsGyver sett("Aqua Control", &db);
 Adafruit_SSD1306 display(SCREEN_WIDTH, SCREEN_HEIGHT, &Wire, OLED_RESET);
+MqttHandler mqtt;
 
 // Переменные состояния
 bool pumpState = false;
@@ -142,6 +144,9 @@ void setup()
     sett.onBuild(build);
     sett.onUpdate(update);
 
+    // Инициализация MQTT
+    mqtt.begin();
+
     Serial.println("Setup complete");
 }
 
@@ -150,10 +155,31 @@ void loop()
     // Системные задачи
     sett.tick();     // Обслуживание веб-интерфейса
     db.tick();       // Сохранение настроек в базу
+    mqtt.tick();     // Обработка MQTT сообщений
 
     // Логика устройства (каждую секунду)
     if (millis() - lastMillis >= 1000) {
         lastMillis = millis();
         controlLogic();
+        
+        // Публикация данных датчиков через MQTT
+        if (mqtt.isConnected()) {
+            int currentTemp = 250; // Заглушка, заменить на реальное чтение датчика
+            mqtt.publishTemperature(currentTemp / 10.0);
+            mqtt.publishPumpState(pumpState);
+            
+            bool co2Enabled = db[kk::co2_enabled].toBool();
+            mqtt.publishCo2State(co2Enabled);
+            
+            time_t now = time(NULL);
+            struct tm *timeinfo = localtime(&now);
+            int hour = timeinfo->tm_hour;
+            int lightStart = db[kk::light_start].toInt32();
+            int lightEnd = db[kk::light_end].toInt32();
+            bool lightState = (hour >= lightStart && hour < lightEnd);
+            mqtt.publishLightState(lightState);
+            
+            mqtt.publishStatus("online");
+        }
     }
 }
