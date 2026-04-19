@@ -1,6 +1,6 @@
 #pragma once
 #include <LiquidCrystal_I2C.h>
-#include <EncoderButton.h>
+#include <GyverEncoder.h>
 #include <GyverDB.h>
 
 // Конфигурация LCD
@@ -15,7 +15,7 @@
 
 // Глобальные объекты
 extern LiquidCrystal_I2C lcd;
-extern EncoderButton encoder;
+extern GyverEncoder encoder;
 
 // Структура меню
 struct MenuItem {
@@ -107,17 +107,17 @@ public:
         initMenus();
         loadValues();
         
-        // Обработчики энкодера
-        encoder.setClickHandler([](EncoderButton& b) {
+        // Обработчики энкодера (используем лямбды GyverEncoder)
+        encoder.setClickHandler([]() {
             getInstance().onEncoderClick();
         });
         
-        encoder.setLongPressHandler([](EncoderButton& b) {
+        encoder.setLongPressHandler([]() {
             getInstance().onEncoderLongPress();
         });
         
-        encoder.setEncoderHandler([](EncoderButton& b) {
-            getInstance().onEncoderTurn(b.readEncoder());
+        encoder.setEncoderHandler([](int dir) {
+            getInstance().onEncoderTurn(dir);
         });
     }
     
@@ -225,5 +225,5 @@ public:
 
 // Глобальные экземпляры
 LiquidCrystal_I2C lcd(LCD_ADDR, LCD_COLS, LCD_ROWS);
-EncoderButton encoder(ENC_PIN_A, ENC_PIN_B, ENC_BTN);
+GyverEncoder encoder(ENC_PIN_A, ENC_PIN_B, ENC_BTN);
 LcdMenu lcdMenu;
