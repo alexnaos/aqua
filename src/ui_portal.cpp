@@ -25,16 +25,16 @@ void build(sets::Builder &b)
     // Группа Температуры
     if (b.beginGroup("Temperature Control"))
     {
-        b.Number(kk::temp_target, "Target Temp (x10)", 100, 350);
-        b.Number(kk::temp_hyst, "Hysteresis (x10)", 1, 50);
+        b.Number(kk::temp_target, "Target Temp (x10)", &db[kk::temp_target], 100, 350);
+        b.Number(kk::temp_hyst, "Hysteresis (x10)", &db[kk::temp_hyst], 1, 50);
         b.endGroup();
     }
 
     // Группа Освещение
     if (b.beginGroup("Light Timer"))
     {
-        b.Number(kk::light_start, "Start Hour", 0, 23);
-        b.Number(kk::light_end, "End Hour", 0, 23);
+        b.Number(kk::light_start, "Start Hour", &db[kk::light_start], 0, 23);
+        b.Number(kk::light_end, "End Hour", &db[kk::light_end], 0, 23);
         b.endGroup();
     }
 
