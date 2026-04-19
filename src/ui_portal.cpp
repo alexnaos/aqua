@@ -23,7 +23,7 @@ void build(sets::Builder &b)
     }
 
     // Группа Температуры
-    if (b.beginGroup("Temperature Control"))
+      if (b.beginGroup("Temperature Control"))
     {
         b.Number(kk::temp_target, "Target Temp (x10)", 100, 350);
         b.Number(kk::temp_hyst, "Hysteresis (x10)", 1, 50);
